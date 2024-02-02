@@ -2,17 +2,20 @@ use std::str::Chars;
 
 pub struct Cursor<'a> {
     chars: Chars<'a>,
-    prev: char
+    prev: char,
+    pub line: i32,
+    pub col: i32
 }
 
 impl <'a> Cursor<'a> {
     pub fn new(input: &'a str) -> Cursor<'a> {
-        Cursor { chars: input.chars(), prev: '\0' }
+        Cursor { chars: input.chars(), prev: '\0', line: 1, col: 0 }
     }
 
     pub fn bump(&mut self) -> Option<char> {
         let res = self.chars.next()?;
         self.prev = res;
+        self.col += 1;
         Some(res)
     }
 

@@ -4,8 +4,14 @@ use self::cursor::Cursor;
 pub mod grammar;
 pub mod cursor;
 
+#[cfg(test)]
+mod test;
+
 pub fn is_whitespace(symbol: char) -> bool {
-    if symbol == ' ' { true } else { false }
+    match symbol {
+        ' ' => true,
+        _ => false
+    }
 }
 
 impl Cursor<'_> {
@@ -14,9 +20,14 @@ impl Cursor<'_> {
             Some(symbol) => symbol,
             None => return TokenKind::EOF
         };
-        
+
         if is_whitespace(first) {
             self.skip_whitespace();
+            return self.advance_token();
+        }
+
+        if first == '\n' {
+            self.line += 1;
             return self.advance_token();
         }
 
@@ -39,7 +50,8 @@ impl Cursor<'_> {
             '(' => TokenKind::LBRACE,
             ')' => TokenKind::RBRACE,
             first @ '0'..='9' => self.parse_num(first),
-            _ => panic!("undefined type of token: {}", first)
+
+            _ => panic!("undefined token at line: {} | col: {}", self.line, self.col)
         }
     }
 
@@ -54,24 +66,24 @@ impl Cursor<'_> {
                 'x' => {
                     base = NumberBase::HEX;
                     self.bump();
-                    TokenKind::INT { base: base, val: self.parse_num_to_str() }
+                    TokenKind::INT { base, val: self.parse_hex_num_to_str() }
                 }
                 'b' => {
                     base = NumberBase::BINARY;
                     self.bump();
-                    TokenKind::INT { base: base, val: self.parse_num_to_str() }
+                    TokenKind::INT { base, val: self.parse_num_to_str() }
                 }
                 'o' => {
                     base = NumberBase::OCTAL;
                     self.bump();
-                    TokenKind::INT { base: base, val: self.parse_num_to_str() }
+                    TokenKind::INT { base, val: self.parse_num_to_str() }
                 }
                 '0'..='9' | '_' => TokenKind::INT { base: base, val: self.parse_num_to_str() },
-                _ => TokenKind::INT { base: base, val: "0".to_string() }
+                _ => TokenKind::INT { base, val: "0".to_string() }
             }
         } else {
             let conv = first.to_string();
-            TokenKind::INT { base: base, val: (conv + &self.parse_num_to_str()) }
+            TokenKind::INT { base, val: (conv + &self.parse_num_to_str()) }
         }
     }
 
@@ -79,10 +91,25 @@ impl Cursor<'_> {
         let mut result = String::new();
 
         loop {
-            let chr = self.bump().unwrap_or('\0');
+            let chr = self.first();
             match chr {
                 '_' => _ = self.bump(),
-                '0'..='9' => result.push(chr),
+                '0'..='9' => result.push(self.bump().unwrap()),
+                _ => break,
+            };
+        };
+
+        return result;
+    }
+
+    fn parse_hex_num_to_str(&mut self) -> String {
+        let mut result = String::new();
+
+        loop {
+            let chr = self.first();
+            match chr {
+                '_' => _ = self.bump(),
+                '0'..='9' | 'a'..='f' | 'A'..='F' => result.push(self.bump().unwrap()),
                 _ => break,
             };
         };
@@ -99,3 +126,4 @@ pub fn tokenize(input: &str) -> impl Iterator<Item = TokenKind> + '_ {
         if token != TokenKind::EOF {Some(token)} else {None}
     })
 }
+
