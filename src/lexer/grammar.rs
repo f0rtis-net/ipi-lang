@@ -14,7 +14,10 @@ pub enum TokenKind {
     SUB,
     MUL,
     DIV,
+    DECREMENT,
+    INCREMENT,
     SEMICOLON,
-    WHITESPACE,
+    LBRACE,
+    RBRACE,
     EOF
 }

@@ -14,22 +14,37 @@ impl Cursor<'_> {
             Some(symbol) => symbol,
             None => return TokenKind::EOF
         };
+        
+        if is_whitespace(first) {
+            self.skip_whitespace();
+            return self.advance_token();
+        }
 
         match first {
-            '+' => TokenKind::ADD,
-            '-' => TokenKind::SUB,
+            '+' => {
+                match self.first() {
+                    '+' => {self.bump(); TokenKind::INCREMENT},
+                    _ => TokenKind::ADD
+                }
+            },
+            '-' => {
+                match self.first() {
+                    '-' => {self.bump(); TokenKind::DECREMENT},
+                    _ => TokenKind::SUB
+                }
+            },
             '/' => TokenKind::DIV,
             '*' => TokenKind::MUL,
             ';' => TokenKind::SEMICOLON,
-            first if is_whitespace(first) => self.skip_whitespace(),
+            '(' => TokenKind::LBRACE,
+            ')' => TokenKind::RBRACE,
             first @ '0'..='9' => self.parse_num(first),
             _ => panic!("undefined type of token: {}", first)
         }
     }
 
-    fn skip_whitespace(&mut self) -> TokenKind {
+    fn skip_whitespace(&mut self) {
         self.eat_while(is_whitespace);
-        TokenKind::WHITESPACE
     }
 
     fn parse_num(&mut self, first: char) -> TokenKind {
