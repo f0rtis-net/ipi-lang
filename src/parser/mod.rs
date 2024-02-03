@@ -4,6 +4,8 @@ use crate::ast::*;
 use crate::lexer::*;
 use self::grammar::NumberBase;
 use self::grammar::TokenKind;
+use self::priority::PriorityLevel;
+pub mod priority;
 
 pub struct Parser {}
 
@@ -23,10 +25,21 @@ impl Parser {
         Expression::INTEGER(number.unwrap())
     }
 
+    fn parse_in_brace_expr(&mut self, stream: &mut Peekable<impl Iterator<Item = TokenKind>>) -> Expression {
+        let result = self.parse_expr(stream, PriorityLevel::LOWEST);
+        let tok = stream.next().unwrap();
+
+        match tok {
+            TokenKind::RBRACE => result,
+            _ => panic!("not valid token close expression, expected \')\', found {:?}", tok)
+        }
+    }
+
     fn parse_prefix(&mut self, stream: &mut Peekable<impl Iterator<Item = TokenKind>>) -> Expression {
         let token = stream.next().unwrap();
 
         match token {
+            TokenKind::LBRACE => self.parse_in_brace_expr(stream),
             TokenKind::INT { base, val } => self.parse_to_num_expr(base, val),
             _ => unimplemented!("Hello from prefix!")
         }
@@ -38,7 +51,7 @@ impl Parser {
             TokenKind::ADD => {
                 Expression::BINARY { 
                     l: Box::new(prefix_expr), 
-                    r: Box::new(self.parse_expr(stream)), 
+                    r: Box::new(self.parse_expr(stream,  PriorityLevel::SUM_SUB)), 
                     op: '+' 
                 }
             }
@@ -47,10 +60,18 @@ impl Parser {
         }
     }
 
-    fn parse_expr(&mut self, stream: &mut Peekable<impl Iterator<Item = TokenKind>>) -> Expression {
+    fn parse_expr(
+        &mut self, stream: 
+        &mut Peekable<impl Iterator<Item = TokenKind>>, 
+        priority: PriorityLevel) -> Expression {
+
         let mut left_expr = self.parse_prefix(stream);
 
         while let Some(tok) = stream.peek() {
+            if priority  >= priority::get_tok_priority(tok)  {
+                break;
+            }
+
             match tok {
                 TokenKind::SEMICOLON => break,
                 _ => left_expr = self.parse_postfix(stream, left_expr),
@@ -61,7 +82,7 @@ impl Parser {
     }
 
     fn parse_expr_stmnt(&mut self, stream: &mut Peekable<impl Iterator<Item = TokenKind>>) -> Expression {
-        let result  = self.parse_expr(stream);
+        let result  = self.parse_expr(stream, PriorityLevel::LOWEST);
 
         match stream.next().unwrap() {
             TokenKind::SEMICOLON => result,
