@@ -1,17 +1,25 @@
-use self::grammar::{NumberBase, TokenKind};
-use self::cursor::Cursor;
-
+mod cursor;
 pub mod grammar;
-pub mod cursor;
+
+use self::grammar::*;
+use self::cursor::*;
 
 #[cfg(test)]
-mod test;
+mod tests;
 
 pub fn is_whitespace(symbol: char) -> bool {
     match symbol {
         ' ' => true,
         _ => false
     }
+}
+
+fn is_id_continue(c: char) -> bool {
+    unicode_xid::UnicodeXID::is_xid_continue(c)
+}
+
+fn is_id(symbol: char) -> bool {
+    symbol == '_' || unicode_xid::UnicodeXID::is_xid_start(symbol)
 }
 
 impl Cursor<'_> {
@@ -32,27 +40,59 @@ impl Cursor<'_> {
         }
 
         match first {
-            '+' => {
-                match self.first() {
-                    '+' => {self.bump(); TokenKind::INCREMENT},
-                    _ => TokenKind::ADD
-                }
+            '+' => match self.first() {
+                '+' => {self.bump(); TokenKind::INCREMENT},
+                _ => TokenKind::PLUS
             },
-            '-' => {
-                match self.first() {
-                    '-' => {self.bump(); TokenKind::DECREMENT},
-                    _ => TokenKind::SUB
-                }
+            '-' => match self.first() {
+                '-' => {self.bump(); TokenKind::DECREMENT},
+                _ => TokenKind::MINUS
             },
-            '/' => TokenKind::DIV,
-            '*' => TokenKind::MUL,
+            '/' => match self.first() { 
+                '/' => {
+                    self.skip_comment_line(); 
+                    self.advance_token()
+                }
+                _ => TokenKind::SLASH
+            },
+            '=' => match self.first() {
+                '=' => { self.bump(); TokenKind::DEQUAL },
+                _ => TokenKind::EQUAL
+            },
+            '>' => TokenKind::MT,
+            '<' => TokenKind::LT,
+            '*' => TokenKind::STAR,
             ';' => TokenKind::SEMICOLON,
             '(' => TokenKind::LBRACE,
             ')' => TokenKind::RBRACE,
             first @ '0'..='9' => self.parse_num(first),
-
+            first if is_id(first) => self.parse_id(first),
             _ => panic!("undefined token at line: {} | col: {}", self.line, self.col)
         }
+    }
+
+    fn parse_id(&mut self, symbol: char) -> TokenKind {
+        let first = symbol;
+        let mut result = String::from(first);
+
+        loop {
+            let chr = self.bump().unwrap_or('\0');
+
+            if !is_id_continue(chr) {
+                break;
+            }
+
+            result.push(chr);
+        }
+        
+        match result.as_str() {
+            "let" => TokenKind::LET,
+            _ => TokenKind::IDENT(result)
+        }
+    }
+
+    fn skip_comment_line(&mut self) {
+        self.eat_while(|c| c != '\n');
     }
 
     fn skip_whitespace(&mut self) {
@@ -126,4 +166,7 @@ pub fn tokenize(input: &str) -> impl Iterator<Item = TokenKind> + '_ {
         if token != TokenKind::EOF {Some(token)} else {None}
     })
 }
+
+
+
 

@@ -10,12 +10,17 @@ pub enum NumberBase {
 pub enum TokenKind {
     IDENT(String),
     INT{base: NumberBase, val: String},
-    ADD,
-    SUB,
-    MUL,
-    DIV,
+    LET,
+    PLUS,
+    MINUS,
+    STAR,
+    SLASH,
     DECREMENT,
     INCREMENT,
+    EQUAL,
+    DEQUAL,
+    LT, //less than
+    MT, //more than
     SEMICOLON,
     LBRACE,
     RBRACE,

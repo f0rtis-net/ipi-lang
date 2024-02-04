@@ -1,4 +1,4 @@
-use super::grammar::TokenKind;
+use ipic_tokenize::grammar::TokenKind;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PriorityLevel {
@@ -14,8 +14,10 @@ pub enum PriorityLevel {
 pub fn get_tok_priority(token: &TokenKind) -> PriorityLevel {
     match token {
         TokenKind::LBRACE => PriorityLevel::LBRACE,
-        TokenKind::DIV | TokenKind::MUL => PriorityLevel::DIV_MUL,
-        TokenKind::ADD | TokenKind::SUB => PriorityLevel::SUM_SUB,
+        TokenKind::SLASH | TokenKind::STAR => PriorityLevel::DIV_MUL,
+        TokenKind::PLUS | TokenKind::MINUS => PriorityLevel::SUM_SUB,
+        TokenKind::LT | TokenKind::MT => PriorityLevel::CMP,
+        TokenKind::DEQUAL => PriorityLevel::EQUAL,
         _ => PriorityLevel::LOWEST,
     }
 }
