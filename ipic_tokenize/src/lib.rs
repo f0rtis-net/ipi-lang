@@ -1,6 +1,6 @@
 mod cursor;
 pub mod grammar;
-
+use std::iter::Peekable;
 use self::grammar::*;
 use self::cursor::*;
 
@@ -23,10 +23,10 @@ fn is_id(symbol: char) -> bool {
 }
 
 impl Cursor<'_> {
-    pub fn advance_token(&mut self) -> TokenKind {
+    pub fn advance_token(&mut self) -> Token {
         let first = match self.bump() {
             Some(symbol) => symbol,
-            None => return TokenKind::EOF
+            None => return Token{kind: TokenKind::EOF, pos:(self.line, self.col)}
         };
 
         if is_whitespace(first) {
@@ -39,36 +39,49 @@ impl Cursor<'_> {
             return self.advance_token();
         }
 
-        match first {
+        if first == '/' {
+            if self.first() == '/' {
+                self.skip_comment_line(); 
+                return self.advance_token();
+            }
+        }
+
+        let kind = match first {
             '+' => match self.first() {
-                '+' => {self.bump(); TokenKind::INCREMENT},
+                '+' => { self.bump(); TokenKind::INCREMENT },
                 _ => TokenKind::PLUS
             },
             '-' => match self.first() {
-                '-' => {self.bump(); TokenKind::DECREMENT},
+                '-' => { self.bump(); TokenKind::DECREMENT },
+                '>' => { self.bump(); TokenKind::ARROW }
                 _ => TokenKind::MINUS
             },
-            '/' => match self.first() { 
-                '/' => {
-                    self.skip_comment_line(); 
-                    self.advance_token()
-                }
-                _ => TokenKind::SLASH
-            },
+            '/' => TokenKind::SLASH,
             '=' => match self.first() {
                 '=' => { self.bump(); TokenKind::DEQUAL },
                 _ => TokenKind::EQUAL
             },
+            '.' => match self.first() {
+                '.' => { self.bump(); TokenKind::RANGE }
+                _ => TokenKind::DOT
+            },
             '>' => TokenKind::MT,
             '<' => TokenKind::LT,
             '*' => TokenKind::STAR,
+            ':' => TokenKind::COLON,
             ';' => TokenKind::SEMICOLON,
             '(' => TokenKind::LBRACE,
             ')' => TokenKind::RBRACE,
+            '"' => TokenKind::DQUOTE,
+            '\'' => TokenKind::QUOTE,
+            '&' => TokenKind::AMPERSAND,
             first @ '0'..='9' => self.parse_num(first),
             first if is_id(first) => self.parse_id(first),
+
             _ => panic!("undefined token at line: {} | col: {}", self.line, self.col)
-        }
+        };
+
+        Token{kind, pos:(self.line, self.col)}
     }
 
     fn parse_id(&mut self, symbol: char) -> TokenKind {
@@ -87,6 +100,12 @@ impl Cursor<'_> {
         
         match result.as_str() {
             "let" => TokenKind::LET,
+            "struct" => TokenKind::STRUCT,
+            "return" => TokenKind::RETURN,
+            "print" => TokenKind::PRINT,
+            "println" => TokenKind::PRINTLN,
+            "imm" => TokenKind::IMMUTABLE,
+            "fn" => TokenKind::FUNCTION,
             _ => TokenKind::IDENT(result)
         }
     }
@@ -102,28 +121,30 @@ impl Cursor<'_> {
     fn parse_num(&mut self, first: char) -> TokenKind {
         let mut base = NumberBase::DECIMAL;
         if first == '0' {
-            match self.first() {
+            let lit_kind = match self.first() {
                 'x' => {
                     base = NumberBase::HEX;
                     self.bump();
-                    TokenKind::INT { base, val: self.parse_hex_num_to_str() }
+                    LiteralKind::INT { base, val: self.parse_hex_num_to_str() }
                 }
                 'b' => {
                     base = NumberBase::BINARY;
                     self.bump();
-                    TokenKind::INT { base, val: self.parse_num_to_str() }
+                    LiteralKind::INT { base, val: self.parse_num_to_str() }
                 }
                 'o' => {
                     base = NumberBase::OCTAL;
                     self.bump();
-                    TokenKind::INT { base, val: self.parse_num_to_str() }
+                    LiteralKind::INT { base, val: self.parse_num_to_str() }
                 }
-                '0'..='9' | '_' => TokenKind::INT { base: base, val: self.parse_num_to_str() },
-                _ => TokenKind::INT { base, val: "0".to_string() }
-            }
+                '0'..='9' | '_' => LiteralKind::INT { base: base, val: self.parse_num_to_str() },
+                _ => LiteralKind::INT { base, val: "0".to_string() }
+            };
+
+            TokenKind::LITERAL(lit_kind)
         } else {
             let conv = first.to_string();
-            TokenKind::INT { base, val: (conv + &self.parse_num_to_str()) }
+            TokenKind::LITERAL(LiteralKind::INT { base, val: (conv + &self.parse_num_to_str()) })
         }
     }
 
@@ -158,13 +179,25 @@ impl Cursor<'_> {
     }
 }
 
-pub fn tokenize(input: &str) -> impl Iterator<Item = TokenKind> + '_ {
+pub struct TokenIterator<'a> {
+    pub toks: Peekable<Box<dyn Iterator<Item = Token> + 'a>>
+}
+
+impl<'a> TokenIterator<'a> {
+    fn new(tokens: Box<dyn Iterator<Item = Token> + 'a>) -> Self {
+        TokenIterator { toks: tokens.peekable() }
+    }
+}
+
+pub fn tokenize(input: &str) -> TokenIterator {
     let mut cursor = Cursor::new(input);
 
-    std::iter::from_fn(move || {
+    let iterator = std::iter::from_fn(move || {
         let token = cursor.advance_token();
-        if token != TokenKind::EOF {Some(token)} else {None}
-    })
+        if token.kind != TokenKind::EOF {Some(token)} else {None}
+    }).peekable();
+
+    TokenIterator::new(Box::new(iterator))
 }
 
 

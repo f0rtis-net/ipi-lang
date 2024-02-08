@@ -1,194 +1,92 @@
-use std::iter::Peekable;
 
-use ast::Expression;
-use ipic_tokenize::{grammar::{NumberBase, TokenKind}, *};
-use priority::PriorityLevel;
+use std::collections::HashMap;
+use ast::Node;
+use ipic_tokenize::{grammar::{LiteralKind, Token, TokenKind}, tokenize, TokenIterator};
+mod ast;
 
-#[cfg(test)]
-mod tests;
+type PrefixFn<'a> = fn(parser: &mut Parser<'a>) -> Node;
+type InfixFn<'a> = fn(parse: &mut Parser<'a>, prefix_node: Node) -> Node;
 
-mod priority;
-pub mod ast;
+struct Parser<'a> {
+    stream: TokenIterator<'a>,
+    infix_callback: HashMap<TokenKind, InfixFn<'a>>,
+    prefix_callback: HashMap<TokenKind, PrefixFn<'a>>
+}
 
-pub struct Parser {}
-
-impl Parser {
-    pub fn new() -> Parser {
-        Parser { }
-    }
-
-    fn parse_to_num_expr(&mut self, base: NumberBase, val: String) -> Expression {
-        let number = match base {
-            NumberBase::BINARY => i32::from_str_radix(val.as_str(), 2),
-            NumberBase::OCTAL => i32::from_str_radix(val.as_str(), 8),
-            NumberBase::DECIMAL => i32::from_str_radix(val.as_str(), 10),
-            NumberBase::HEX => i32::from_str_radix(val.as_str(), 16),
+impl<'a> Parser<'a> {
+    fn new(stream: TokenIterator<'a>) -> Parser<'a> {
+        let mut obj = Parser {
+            stream,
+            infix_callback: HashMap::new(),
+            prefix_callback: HashMap::new()
         };
 
-        Expression::INTEGER(number.unwrap())
+        obj.register_prefixes();
+
+        return obj;
     }
 
-    fn parse_in_brace_expr(
-        &mut self, stream: 
-        &mut Peekable<impl Iterator<Item = TokenKind>>) -> Expression {
+    fn register_prefixes(&mut self) {
+        self.prefix_callback.insert(
+            TokenKind::LBRACE, Self::self_test
+        ); 
 
-        let result = self.parse_expr(stream, PriorityLevel::LOWEST);
-        self.handle_error_type(stream, TokenKind::RBRACE);
-        stream.next();
-        return result;
-    }
+        
+        let prefix_ops = vec![
+            TokenKind::DECREMENT, 
+            TokenKind::INCREMENT, 
+            TokenKind::MINUS,
+            TokenKind::PLUS
+            ];
 
-    fn parse_prefix(
-        &mut self, 
-        stream: &mut Peekable<impl Iterator<Item = TokenKind>>, 
-        prefix_type: TokenKind) -> Expression {
-
-        match prefix_type {
-            TokenKind::DECREMENT => {
-                let expr = self.parse_expr(stream, PriorityLevel::PREFIX);
-                match expr {
-                    _ => unimplemented!("cannot decrement read-only value")
-                }
-            }
-            TokenKind::MINUS => {
-                let expr = self.parse_expr(stream, PriorityLevel::PREFIX);
-
-                Expression::UNARY { obj: Box::new(expr), op: TokenKind::MINUS }
-            }
-            TokenKind::PLUS => self.parse_left(stream), // ignore this format 
-
-            _ => panic!("invalid prefix operator: {:?}", prefix_type)
+        for prefix in prefix_ops {
+            self.prefix_callback.insert(prefix, Self::parse_unary_prefix);
         }
     }
 
-    fn parse_left(&mut self, stream: &mut Peekable<impl Iterator<Item = TokenKind>>) -> Expression {
-        let token = stream.next().unwrap();
+    fn parse_unary_prefix(&mut self) -> Node {
+        let operator = self.stream.toks.peek().unwrap().clone();
+        let expression = self.parse_statement().unwrap();
+        Node::UNARY { val: Box::new(expression), op: operator.kind }
+    }
 
-        match token {
-            TokenKind::LBRACE => self.parse_in_brace_expr(stream),
-            TokenKind::INT { base, val } => self.parse_to_num_expr(base, val),
-            _ => self.parse_prefix(stream, token)
+    fn self_test(&mut self) -> Node {
+        println!("{:?}",self.stream.toks.next());
+        Node::INTEGER(10)
+    }
+
+    fn parse_literal(&mut self, literal: LiteralKind) -> Node {
+        match literal {
+            LiteralKind::INT { base, val } => Node::INTEGER(10),
+            _ => Node::INTEGER(10)
         }
     }
 
-    fn parse_right(
-        &mut self, 
-        stream: &mut Peekable<impl Iterator<Item = TokenKind>>, 
-        prefix_expr: Expression) -> Expression {
-
-        let token = stream.next().unwrap();
-        match token {
-            TokenKind::PLUS | TokenKind::MINUS => {
-                Expression::BINARY { 
-                    l: Box::new(prefix_expr), 
-                    r: Box::new(self.parse_expr(stream,  PriorityLevel::SUM_SUB)), 
-                    op: token
-                }
-            }
-
-            TokenKind::STAR | TokenKind::SLASH => {
-                Expression::BINARY { 
-                    l: Box::new(prefix_expr), 
-                    r: Box::new(self.parse_expr(stream,  PriorityLevel::DIV_MUL)), 
-                    op: token
-                }
-            }
-
-            TokenKind::LT | TokenKind::MT => {
-                Expression::BINARY { 
-                    l: Box::new(prefix_expr), 
-                    r: Box::new(self.parse_expr(stream, PriorityLevel::CMP)), 
-                    op: token
-                }
-            }
-
-            TokenKind::DEQUAL => {
-                Expression::BINARY { 
-                    l: Box::new(prefix_expr), 
-                    r: Box::new(self.parse_expr(stream, PriorityLevel::EQUAL)), 
-                    op: token
-                }
-            }
-
-            _ => unimplemented!("Hello from postfix!")
-        }
+    fn parse_expr_statement(&mut self) -> Node {
+        unimplemented!("")
     }
 
-    fn parse_expr(
-        &mut self, stream: 
-        &mut Peekable<impl Iterator<Item = TokenKind>>, 
-        priority: PriorityLevel) -> Expression {
+    fn parse_ret_statement(&mut self) -> Node {
+        unimplemented!("")
+    }
 
-        let mut left_expr = self.parse_left(stream);
+    pub fn parse_statement(&mut self) -> Option<Node> {
+        let tok = self.stream.toks.peek()?;
 
-        while let Some(tok) = stream.peek() {
-            if priority  >= priority::get_tok_priority(tok)  {
-                break;
+        match tok.kind.clone() {
+            TokenKind::LITERAL(lit) => Some(self.parse_literal(lit)),
+            _ => {
+                let callback = self.prefix_callback.get(&tok.kind)?;
+                Some(callback(self))
             }
-
-            match tok {
-                TokenKind::SEMICOLON => break,
-                _ => left_expr = self.parse_right(stream, left_expr),
-            };
-        }
-
-        left_expr
-    }
-
-    fn parse_expr_stmnt(&mut self, stream: &mut Peekable<impl Iterator<Item = TokenKind>>) -> Expression {
-        let result  = self.parse_expr(stream, PriorityLevel::LOWEST);
-        self.handle_error_type(stream, TokenKind::SEMICOLON); stream.next();
-        return result;
-    }
-
-    fn handle_error_type(
-        &mut self, 
-        stream: &mut Peekable<impl Iterator<Item = TokenKind>>, 
-        needed: TokenKind) {
-            
-        let token =  stream.peek().unwrap_or(&TokenKind::EOF);
-        match token {
-            token if token == &needed => (),
-            _ => panic!("Unpredicted token! Waited {:?}, but got {:?}", needed, token)
-        };
-    }
-
-    fn parse_let_statement(&mut self, stream: &mut Peekable<impl Iterator<Item = TokenKind>>) -> Expression {
-        let name = stream.next().unwrap_or(TokenKind::EOF);
-        match name {
-            TokenKind::IDENT(val) => {
-                self.handle_error_type(stream, TokenKind::EQUAL); stream.next();
-                Expression::LET { 
-                    name: val, 
-                    val: Box::new(self.parse_expr_stmnt(stream)) 
-                }
-            }
-            _ => panic!("cannot find val name!")
-        }
-    }
-
-    pub fn parse_statement(&mut self, stream: &mut Peekable<impl Iterator<Item = TokenKind>>) -> Expression {
-        let tok = stream.peek().unwrap();
-        match tok {
-            TokenKind::LET => {
-                stream.next();
-                self.parse_let_statement(stream)
-            },
-            _ => self.parse_expr_stmnt(stream)
         }
     }
 }
 
-pub fn construct_expr_stream(input: &str) -> impl Iterator<Item = Expression> + '_ {
-    let mut parser = Parser::new();
-    let mut lexer = tokenize(input).peekable();
-
+pub fn create_parse_stream(input: &str) -> impl Iterator<Item = Node> + '_ {
+    let tok_stream = tokenize(input);
+    let mut parser = Parser::new(tok_stream);
     std::iter::from_fn(move || {
-        if let Some(_token) = lexer.peek() {
-            let expression = parser.parse_statement(&mut lexer);
-            Some(expression)
-        } else {
-            None
-        }
+        parser.parse_statement() 
     })
 }

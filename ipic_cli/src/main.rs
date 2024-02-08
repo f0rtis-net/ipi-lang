@@ -1,6 +1,8 @@
-use ipic_parse;
+use ipic_parse::{self, create_parse_stream};
 
 fn main() {
-    let mut expr_stream = ipic_parse::construct_expr_stream("let test1 = 10 + 20;");
-    println!("{:?}", expr_stream.next().unwrap());
+    let parser = create_parse_stream("((");
+    for expr in parser {
+        println!("{:?}", expr);
+    }
 }

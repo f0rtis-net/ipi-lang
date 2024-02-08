@@ -1,0 +1,27 @@
+use test;
+
+struct hehe {
+    a: int,
+    imm b: int // immutate val b
+}
+
+fn work_with_struct(obj: &hehe) {
+    hehe.a = 10;
+}
+
+fn test(a: int, b: int) -> int {
+    // comment
+    --a; //ok
+    --10 // not ok
+    -10 //ok
+    return a + b;
+}
+
+fn main() {
+    val a: int = 10;
+
+    for i in 1..10 { //start at 1 and end at 10
+        print(i)
+        println(a)
+    }
+}

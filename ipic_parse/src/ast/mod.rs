@@ -1,9 +1,8 @@
 use ipic_tokenize::grammar::TokenKind;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Expression {
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Node {
     INTEGER(i32),
-    BINARY{l: Box<Expression>, r: Box<Expression>, op: TokenKind},
-    UNARY{obj: Box<Expression>, op: TokenKind},
-    LET{name: String, val: Box<Expression>}
+    BINARY{lhs: Box<Node>, rhs: Box<Node>, op: TokenKind},
+    UNARY{val: Box<Node>, op: TokenKind}
 }
