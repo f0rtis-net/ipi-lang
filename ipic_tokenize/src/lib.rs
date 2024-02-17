@@ -72,6 +72,8 @@ impl Cursor<'_> {
             ';' => TokenKind::SEMICOLON,
             '(' => TokenKind::LBRACE,
             ')' => TokenKind::RBRACE,
+            '{' => TokenKind::CLBRACE,
+            '}' => TokenKind::CRBRACE,
             '"' => TokenKind::DQUOTE,
             '\'' => TokenKind::QUOTE,
             '&' => TokenKind::AMPERSAND,
@@ -89,23 +91,25 @@ impl Cursor<'_> {
         let mut result = String::from(first);
 
         loop {
-            let chr = self.bump().unwrap_or('\0');
+            let chr = self.first();
 
             if !is_id_continue(chr) {
                 break;
             }
 
+            self.bump();
+
             result.push(chr);
         }
         
         match result.as_str() {
-            "let" => TokenKind::LET,
-            "struct" => TokenKind::STRUCT,
+            "let" => TokenKind::RESERVED(ReservedIDents::LET),
+            "struct" => TokenKind::RESERVED(ReservedIDents::STRUCT),
             "return" => TokenKind::RETURN,
             "print" => TokenKind::PRINT,
             "println" => TokenKind::PRINTLN,
             "imm" => TokenKind::IMMUTABLE,
-            "fn" => TokenKind::FUNCTION,
+            "fn" => TokenKind::RESERVED(ReservedIDents::FUNCTION),
             _ => TokenKind::IDENT(result)
         }
     }

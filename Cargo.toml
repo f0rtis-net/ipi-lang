@@ -5,4 +5,6 @@ members =[
     "ipi_vm", 
     "ipic_parse", 
     "ipic_tokenize", 
-    "ipic_translator", "ipic_log"]
+    "ipic_translator", 
+    "ipic_log"
+    ]

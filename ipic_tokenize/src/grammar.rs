@@ -13,10 +13,20 @@ pub enum LiteralKind {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ReservedIDents {
+    FUNCTION,
+    STRUCT,
+    LET,
+    VOID,
+    I32,
+    F32
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TokenKind {
     LITERAL(LiteralKind),
     IDENT(String),
-    LET,
+    RESERVED(ReservedIDents),
     PLUS,
     MINUS,
     STAR,
@@ -31,17 +41,17 @@ pub enum TokenKind {
     COLON,
     LBRACE,
     RBRACE,
+    CLBRACE,
+    CRBRACE,
     DQUOTE,
     QUOTE,
     AMPERSAND,
     DOT,
     RANGE,
-    STRUCT,
     RETURN,
     PRINT,
     PRINTLN,
     IMMUTABLE,
-    FUNCTION,
     ARROW,
     EOF
 }
